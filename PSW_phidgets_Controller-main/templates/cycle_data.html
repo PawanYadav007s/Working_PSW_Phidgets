@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cycle Data - PSW Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header-flex">
+            <div class="logo">
+                <img src="../static/images/rasco_logo.png" alt="Rasco Industries Logo" style="width: 150px;">
+            </div>
+            <h1>Cycle Data</h1>
+            <div class="logo">
+                <img src="../static/images/mahindra_logo.png" alt="Mahindra Logo" style="width: 150px;">
+            </div>
+        </header>
+
+        <!-- Table Section -->
+        <div class="cycle-data-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cycle Number</th>
+                        <th>Voltage (V)</th>
+                        <th>Current (A)</th>
+                    </tr>
+                </thead>
+                <tbody id="cycleDataBody">
+    {% if cycle_data and cycle_data|length > 0 %}
+        {% for entry in cycle_data %}
+            <tr>
+                <td>{{ entry["cycle"] }}</td>
+                <td>{{ entry["voltage"] }}</td>
+                <td>{{ entry["current"] }}</td>
+            </tr>
+        {% endfor %}
+    {% else %}
+        <tr>
+            <td colspan="3" style="text-align: center; color: gray;">No data available. Run a cycle first.</td>
+        </tr>
+    {% endif %}
+</tbody>
+            </table>
+        </div>
+
+        <!-- Buttons -->
+        <div class="button-group" style="margin-top: 20px;">
+            <a href="/" class="btn-back">← Back to Dashboard</a>
+            <button onclick="window.location.reload();">Refresh</button>
+        </div>
+    </div>
+</body>
+</html>

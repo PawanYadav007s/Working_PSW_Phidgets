@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Logs - PSW Controller</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>System Logs</h1>
+
+        <div class="logs-container">
+            {% if logs %}
+                <ul>
+                    {% for log in logs %}
+                        <li>{{ log }}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No logs available.</p>
+            {% endif %}
+        </div>
+
+        <a href="/" class="btn-back">Back to Dashboard</a>
+    </div>
+</body>
+</html>

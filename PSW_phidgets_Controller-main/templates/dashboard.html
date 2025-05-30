@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Power Supply Dashboard</title>
+  <link rel="stylesheet" href="../static/css/styles.css"/>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header Section -->
+    <header class="header-flex">
+      <div class="logo">
+        <img src="../static/images/rasco_logo.png" alt="Rasco Industries Logo" style="width: 150px;">
+      </div>
+      <h1>PSW Control Panel</h1>
+      <div class="logo">
+        <img src="../static/images/mahindra_logo.png" alt="Mahindra Logo" style="width: 150px;">
+      </div>
+    </header>
+
+    <!-- DateTime Box -->
+    <div class="datetime-box" id="datetime"></div>
+
+    <!-- Main Section -->
+    <main>
+      <div class="button-group">
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn">Disconnect</button>
+        <button id="readingBtn" onclick="location.href='/cycle_data'">Reading Data</button>
+        <button id="settingsBtn">Settings</button>
+      </div>
+
+      <div class="combined-settings-status">
+        <div class="left-settings">
+          <h3>Cycle Settings</h3>
+          <div class="setting-row">
+            <div class="setting-box">
+              <span class="setting-label">Cycles</span>
+              <span id="setCyclesCount">--</span>
+            </div>
+            <div class="setting-box">
+              <span class="setting-label">Voltage</span>
+              <span id="setVoltageValue">--</span> V
+            </div>
+          </div>
+        </div>
+        <div class="right-status">
+          <h3>Status</h3>
+          <p><span id="status">Disconnected</span></p>
+          <div class="indicator" id="indicator"></div>
+        </div>
+      </div>
+      
+
+      <div class="logs-section">
+        <h2>Logs</h2>
+        <textarea id="logsBox" readonly></textarea>
+        <div class="progress-container">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+      </div>
+
+      <div class="job-result-box">
+        <h2>Job Cycle Result</h2>
+        <div id="jobResultDisplay">
+          <span id="processingStatus">Waiting for result...</span>
+        </div>
+      </div>
+
+      <div class="control-bottom-right">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn">Stop</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Admin Login</h2>
+      <input type="text" id="username" placeholder="Username"/>
+      <input type="password" id="password" placeholder="Password"/>
+      <button onclick="verifyLogin()">Login</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script>
+    // DateTime
+    function updateTime() {
+      const now = new Date();
+      document.getElementById("datetime").textContent = now.toLocaleString();
+    }
+    setInterval(updateTime, 1000);
+    updateTime();
+
+    // Fetch and display setted cycle count and voltage
+fetch('/get_settings')
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById("setCyclesCount").innerText = data.cycles || "--";
+    document.getElementById("setVoltageValue").innerText = data.voltage || "--";
+  })
+  .catch(err => {
+    console.error("Failed to fetch settings:", err);
+  });
+
+
+    // Modal Login
+    const modal = document.getElementById("loginModal");
+    document.getElementById("settingsBtn").onclick = () => modal.style.display = "block";
+    document.querySelector(".close").onclick = () => modal.style.display = "none";
+    window.onclick = e => { if (e.target == modal) modal.style.display = "none"; }
+
+    function verifyLogin() {
+      const user = document.getElementById("username").value;
+      const pass = document.getElementById("password").value;
+    
+      fetch("/verify_login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ username: user, password: pass })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            window.location.href = "/settings";
+          } else {
+            alert("Incorrect credentials!");
+          }
+        })
+        .catch(error => {
+          console.error("Error verifying login:", error);
+          alert("An error occurred. Please try again.");
+        });
+    }
+    
+
+    // On load: check connection status
+    window.onload = () => {
+      fetch('/status')
+        .then(res => res.json())
+        .then(data => {
+          if (data.connected) {
+            document.getElementById("status").innerText = "Connected";
+            document.getElementById("indicator").style.backgroundColor = "green";
+          } else {
+            document.getElementById("status").innerText = "Disconnected";
+            document.getElementById("indicator").style.backgroundColor = "red";
+          }
+        });
+    };
+
+    // Connect Button
+    document.getElementById("connectBtn").onclick = () => {
+      fetch("/connect")
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+          if (data.status === "Connected") {
+            document.getElementById("status").innerText = "Connected";
+            document.getElementById("indicator").style.backgroundColor = "green";
+          }
+        });
+    };
+
+    // Disconnect Button
+    document.getElementById("disconnectBtn").onclick = () => {
+      fetch("/disconnect")
+        .then(res => res.json())
+        .then(data => {
+          alert(data.message);
+          document.getElementById("status").innerText = "Disconnected";
+          document.getElementById("indicator").style.backgroundColor = "red";
+        });
+    };
+
+    // Start Cycle
+    document.getElementById("startBtn").onclick = async () => {
+      document.getElementById("processingStatus").innerText = "Starting cycle...";
+      document.getElementById("processingStatus").style.color = "orange";
+      document.getElementById("logsBox").innerText = "";
+
+      try {
+        const res = await fetch("/start_loop", { method: "POST" });
+        const result = await res.json();
+
+        if (result.status === "Started") {
+          document.getElementById("processingStatus").innerText = "Cycle Running...";
+          document.getElementById("processingStatus").style.color = "blue";
+          document.getElementById("logsBox").innerText = "Cycle process started. Please wait...";
+        } else {
+          document.getElementById("processingStatus").innerText = "Start Failed";
+          document.getElementById("processingStatus").style.color = "red";
+          alert(result.message || "Failed to start.");
+        }
+      } catch (error) {
+        console.error("Start Error:", error);
+        alert("Error starting the cycle.");
+        document.getElementById("processingStatus").innerText = "Error";
+        document.getElementById("processingStatus").style.color = "red";
+      }
+    };
+
+    // Stop Cycle
+    document.getElementById("stopBtn").onclick = async () => {
+      try {
+        const res = await fetch("/stop_loop", { method: "POST" });
+        const result = await res.json();
+
+        if (result.status === "Stopped") {
+          document.getElementById("processingStatus").innerText = "Stopped by user";
+          document.getElementById("processingStatus").style.color = "gray";
+          alert("Cycle stopped.");
+        } else {
+          alert("Unable to stop.");
+        }
+      } catch (error) {
+        console.error("Stop Error:", error);
+        alert("Error stopping.");
+      }
+    };
+
+// === Periodic cycle status poll (every 2s) ===
+// === Periodic cycle status poll (every 2s) ===
+setInterval(async () => {
+  try {
+    const res = await fetch("/cycle_status");
+    const data = await res.json();
+
+    // Update logs and scroll to bottom
+    const logsBox = document.getElementById("logsBox");
+    logsBox.value = data.logs || "";
+    logsBox.scrollTop = logsBox.scrollHeight; // <--- auto scroll to bottom
+
+    // Update processing status
+    const statusEl = document.getElementById("processingStatus");
+    if (data.status) {
+      statusEl.innerText = data.status;
+
+      if (data.status.includes("Completed")) {
+        statusEl.style.color = "green";
+      } else if (data.status.includes("Stopped")) {
+        statusEl.style.color = "gray";
+      } else if (data.status.includes("Running")) {
+        statusEl.style.color = "blue";
+      } else {
+        statusEl.style.color = "black";
+      }
+    }
+
+  } catch (err) {
+    console.error("Cycle status fetch failed:", err);
+  }
+}, 2000);
+
+
+  </script>
+</body>
+</html>
