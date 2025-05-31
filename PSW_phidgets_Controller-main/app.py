@@ -267,7 +267,8 @@ def start_loop():
             else:
                 latest_status = "Job OK"
 
-            save_to_excel(result_data, job_start_time, voltage)
+            save_to_excel(result_data, job_start_time, voltage, was_stopped=stop_flag)
+
             latest_cycle_data = result_data
 
         except Exception as err:
@@ -306,16 +307,15 @@ def cycle_status():
         "status": latest_status
     })
 
-def save_to_excel(data, start_time, voltage):
+def save_to_excel(data, start_time, voltage, was_stopped=False):
     settings = load_settings()
     user_path = settings.get("excel_path", "").strip()
 
     # Get current year and month
     now = datetime.now()
     year = now.strftime("%Y")
-    month = now.strftime("%m")  # Two-digit month
+    month = now.strftime("%m")
 
-    # Construct folder hierarchy: base/year/month
     base_dir = user_path if user_path else "."
     save_dir = os.path.join(base_dir, year, month)
 
@@ -338,7 +338,7 @@ def save_to_excel(data, start_time, voltage):
     else:
         wb = load_workbook(logs_excel_path)
         ws = wb.active
-        ws.append([])  # Blank line for separation
+        ws.append([])
         ws.append(["Log Start Time", start_time])
         ws.append(["Cycle", "Voltage", "Current", "Status", "Time"])
 
@@ -352,7 +352,7 @@ def save_to_excel(data, start_time, voltage):
         ])
     wb.save(logs_excel_path)
 
-    # Save job summary result
+    # Save job result summary
     if not os.path.exists(results_excel_path):
         result_wb = Workbook()
         result_ws = result_wb.active
@@ -361,17 +361,23 @@ def save_to_excel(data, start_time, voltage):
         result_wb = load_workbook(results_excel_path)
         result_ws = result_wb.active
 
-    # Normalize and validate status
+    # Determine job status
     valid_ok_values = {"ok", "job ok", "success", "completed"}
     status_list = [entry.get("status", "").strip().lower() for entry in data]
     print("[DEBUG] Status entries:", status_list)
 
-    all_ok = all(status in valid_ok_values for status in status_list)
-    result_status = "OK" if all_ok else "Not OK"
+    if was_stopped:
+        result_status = "Not OK"
+        print("[INFO] Job was manually stopped. Marking result as Not OK.")
+    else:
+        all_ok = all(status in valid_ok_values for status in status_list)
+        result_status = "OK" if all_ok else "Not OK"
+
     result_ws.append([start_time, voltage, len(data), result_status])
     result_wb.save(results_excel_path)
 
     print(f"[INFO] Excel files saved to: {save_dir}")
+
 
 # Arduino listener thread for button press
 # PHIDGET: Replace Arduino serial button listener with Phidget Digital Input
