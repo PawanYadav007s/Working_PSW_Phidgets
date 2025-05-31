@@ -316,11 +316,7 @@ def save_to_excel(data, start_time, voltage):
     month = now.strftime("%m")  # Two-digit month
 
     # Construct folder hierarchy: base/year/month
-    if user_path:
-        base_dir = user_path
-    else:
-        base_dir = "."
-
+    base_dir = user_path if user_path else "."
     save_dir = os.path.join(base_dir, year, month)
 
     try:
@@ -347,7 +343,13 @@ def save_to_excel(data, start_time, voltage):
         ws.append(["Cycle", "Voltage", "Current", "Status", "Time"])
 
     for entry in data:
-        ws.append([entry["cycle"], entry["voltage"], entry["current"], entry["status"], entry["timestamp"]])
+        ws.append([
+            entry.get("cycle", ""),
+            entry.get("voltage", ""),
+            entry.get("current", ""),
+            entry.get("status", ""),
+            entry.get("timestamp", "")
+        ])
     wb.save(logs_excel_path)
 
     # Save job summary result
@@ -359,8 +361,14 @@ def save_to_excel(data, start_time, voltage):
         result_wb = load_workbook(results_excel_path)
         result_ws = result_wb.active
 
-    all_ok = all(entry["status"] == "OK" for entry in data)
-    result_ws.append([start_time, voltage, len(data), "OK" if all_ok else "Not OK"])
+    # Normalize and validate status
+    valid_ok_values = {"ok", "job ok", "success", "completed"}
+    status_list = [entry.get("status", "").strip().lower() for entry in data]
+    print("[DEBUG] Status entries:", status_list)
+
+    all_ok = all(status in valid_ok_values for status in status_list)
+    result_status = "OK" if all_ok else "Not OK"
+    result_ws.append([start_time, voltage, len(data), result_status])
     result_wb.save(results_excel_path)
 
     print(f"[INFO] Excel files saved to: {save_dir}")
