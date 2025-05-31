@@ -237,6 +237,8 @@ header h1 {
 }
 
 
+
+
 /* Progress Bar */
 .progress-container {
     margin-top: 10px;
@@ -253,6 +255,7 @@ header h1 {
     background-color: #005daa;
     transition: width 0.3s ease-in-out;
 }
+
 
 /* job result display */
 

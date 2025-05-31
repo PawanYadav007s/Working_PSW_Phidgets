@@ -70,10 +70,12 @@ def get_settings():
         return jsonify({
             "voltage": settings.get("voltage", "0.00"),
             "current": settings.get("current", "0.00"),
-            "cycles": int(settings.get("cycles", 0))
+            "cycles": int(settings.get("cycles", 0)),
+            "delay": float(settings.get("delay", 1.0))  # <-- add this line
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/settings", methods=["GET", "POST"])
 def settings_page():

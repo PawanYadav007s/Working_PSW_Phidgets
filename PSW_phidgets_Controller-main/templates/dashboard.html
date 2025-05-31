@@ -127,7 +127,12 @@
     updateCycleProgress(0, total);
   }
 
-  // Fetch and display current settings (cycles and voltage)
+  // --- Dynamic polling variables ---
+  let cycleDelayMs = 2000; // default delay 2 seconds
+  let cycleStatusInterval;
+  let cycleProgressInterval;
+
+  // Fetch and display current settings (cycles, voltage, and delay)
   function fetchSettings() {
     fetch('/get_settings')
       .then(res => res.json())
@@ -138,8 +143,66 @@
         if (data.cycles) {
           startNewCycleJob(parseInt(data.cycles));
         }
+
+        if (data.delay) {
+          cycleDelayMs = data.delay * 1000; // convert seconds to milliseconds
+          restartPollingIntervals();
+        }
       })
       .catch(err => console.error("Failed to fetch settings:", err));
+  }
+
+  // Poll cycle status and logs
+  function startPolling() {
+    cycleStatusInterval = setInterval(async () => {
+      try {
+        const res = await fetch("/cycle_status");
+        const data = await res.json();
+
+        // Update logs textarea and scroll to bottom
+        const logsBox = document.getElementById("logsBox");
+        logsBox.value = data.logs || "";
+        logsBox.scrollTop = logsBox.scrollHeight;
+
+        // Update status message with styling
+        const statusEl = document.getElementById("processingStatus");
+        if (data.status) {
+  statusEl.innerText = data.status;
+
+  const statusLower = data.status.toLowerCase();
+  const progressBar = document.getElementById("progressBar");
+
+  if (statusLower.includes("job ok")) {
+    statusEl.style.color = "green";
+    progressBar.style.backgroundColor = "green";
+  } else if (
+    statusLower.includes("job not ok") ||
+    statusLower.includes("stopped early") ||
+    statusLower.includes("stopped")
+  ) {
+    statusEl.style.color = "red";
+    progressBar.style.backgroundColor = "red";
+  } else if (statusLower.includes("running")) {
+    statusEl.style.color = "blue";
+    progressBar.style.backgroundColor = "#005daa"; // original blue
+  } else {
+    statusEl.style.color = "black";
+    progressBar.style.backgroundColor = "#005daa"; // default color
+  }
+}
+
+      } catch (err) {
+        console.error("Cycle status fetch failed:", err);
+      }
+    }, cycleDelayMs);
+
+    cycleProgressInterval = setInterval(fetchCycleProgress, cycleDelayMs);
+  }
+
+  function restartPollingIntervals() {
+    if (cycleStatusInterval) clearInterval(cycleStatusInterval);
+    if (cycleProgressInterval) clearInterval(cycleProgressInterval);
+    startPolling();
   }
 
   // Modal Login handlers
@@ -172,22 +235,27 @@
   }
 
   // On page load, fetch connection status and settings
-  window.onload = () => {
-    fetch('/status')
-      .then(res => res.json())
-      .then(data => {
-        const statusEl = document.getElementById("status");
-        const indicatorEl = document.getElementById("indicator");
-        if (data.connected) {
-          statusEl.innerText = "Connected";
-          indicatorEl.style.backgroundColor = "green";
-        } else {
-          statusEl.innerText = "Disconnected";
-          indicatorEl.style.backgroundColor = "red";
-        }
-      });
-    fetchSettings();
-  };
+window.onload = async () => {
+  try {
+    const res = await fetch('/status');
+    const data = await res.json();
+    const statusEl = document.getElementById("status");
+    const indicatorEl = document.getElementById("indicator");
+    if (data.connected) {
+      statusEl.innerText = "Connected";
+      indicatorEl.style.backgroundColor = "green";
+    } else {
+      statusEl.innerText = "Disconnected";
+      indicatorEl.style.backgroundColor = "red";
+    }
+
+    await fetchSettings();  // wait for settings to load and cycle count to be updated
+    startPolling();         // only start polling after settings are applied
+  } catch (err) {
+    console.error("Initialization failed:", err);
+  }
+};
+
 
   // Connect button
   document.getElementById("connectBtn").onclick = () => {
@@ -231,10 +299,14 @@
         processingStatus.style.color = "blue";
         logsBox.value = "Cycle process started. Please wait...";
 
-        // Fetch settings again to reset progress
+        // Fetch settings again to reset progress and polling delay
         const settings = await fetch('/get_settings').then(r => r.json());
         if (settings.cycles) {
           startNewCycleJob(parseInt(settings.cycles));
+        }
+        if (settings.delay) {
+          cycleDelayMs = settings.delay * 1000;
+          restartPollingIntervals();
         }
       } else {
         processingStatus.innerText = "Start Failed";
@@ -268,46 +340,7 @@
     }
   };
 
-  // Poll cycle status and logs every 2 seconds
-  setInterval(async () => {
-    try {
-      const res = await fetch("/cycle_status");
-      const data = await res.json();
-
-      // Update logs textarea and scroll to bottom
-      const logsBox = document.getElementById("logsBox");
-      logsBox.value = data.logs || "";
-      logsBox.scrollTop = logsBox.scrollHeight;
-
-      // Update status message with styling
-      const statusEl = document.getElementById("processingStatus");
-if (data.status) {
-  statusEl.innerText = data.status;
-
-  const statusLower = data.status.toLowerCase();
-
-  if (statusLower.includes("job ok")) {
-    statusEl.style.color = "green";
-  } else if (
-    statusLower.includes("job not ok") ||
-    statusLower.includes("stopped early") ||
-    statusLower.includes("stopped")
-  ) {
-    statusEl.style.color = "red";
-  } else if (statusLower.includes("running")) {
-    statusEl.style.color = "blue";
-  } else {
-    statusEl.style.color = "black";
-  }
-}
-
-
-    } catch (err) {
-      console.error("Cycle status fetch failed:", err);
-    }
-  }, 2000);
-
-  // Poll cycle progress every 2 seconds from backend
+  // Fetch cycle progress from backend
   function fetchCycleProgress() {
     fetch("/cycle_progress")
       .then(response => response.json())
@@ -318,10 +351,8 @@ if (data.status) {
       })
       .catch(error => console.error("Error fetching cycle progress:", error));
   }
-  setInterval(fetchCycleProgress, 2000);
-  fetchCycleProgress();
-
 </script>
+
 
 
 </body>
