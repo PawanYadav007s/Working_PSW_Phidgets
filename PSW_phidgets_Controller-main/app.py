@@ -27,6 +27,7 @@ latest_log_text = ""
 latest_status = "Waiting for result..."
 cycle_running = False
 cycle_lock = threading.Lock()
+current_cycle = 0 
 
 # Load or create default settings
 def load_settings():
@@ -183,12 +184,13 @@ def status():
 
 @app.route("/start_loop", methods=["POST"])
 def start_loop():
-    global device, stop_flag, latest_cycle_data, latest_log_text, latest_status, cycle_running
+    global device, stop_flag, latest_cycle_data, latest_log_text, latest_status, cycle_running, current_cycle
 
     with cycle_lock:
         if cycle_running:
             return jsonify({"status": "Running", "message": "Cycle already running"})
         cycle_running = True
+        current_cycle = 0  # Reset cycle count at start
 
     settings = load_settings()
     voltage = round(float(settings["voltage"]), 2)
@@ -207,7 +209,7 @@ def start_loop():
 
     def run_cycles():
         nonlocal result_data
-        global stop_flag, latest_cycle_data, latest_log_text, latest_status, cycle_running
+        global stop_flag, latest_cycle_data, latest_log_text, latest_status, cycle_running, current_cycle
 
         job_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -215,6 +217,8 @@ def start_loop():
             for i in range(1, cycles + 1):
                 if stop_flag:
                     break
+
+                current_cycle = i  # Update current cycle here
 
                 try:
                     device.write("OUTP OFF")
@@ -269,10 +273,22 @@ def start_loop():
             latest_status = "Job Not OK"
         finally:
             cycle_running = False
+            current_cycle = cycles if not stop_flag else current_cycle
 
     threading.Thread(target=run_cycles).start()
     return jsonify({"status": "Started", "message": "Cycle loop started"})
 
+# New endpoint to provide progress to frontend
+@app.route("/cycle_progress")
+def cycle_progress():
+    settings = load_settings()
+    total_cycles = int(settings.get("cycles", 0))
+    global current_cycle
+
+    return jsonify({
+        "current": current_cycle,
+        "total": total_cycles
+    })
 
 @app.route("/stop_loop", methods=["POST"])
 def stop_loop():
